@@ -44,6 +44,8 @@ struct AppState {
     fixing_in_progress: bool,
     search_result: Option<SearchResult>,
     searching: bool,
+    show_confirm: bool,
+    show_manual_commands: bool,
 }
 
 impl AppState {
@@ -55,6 +57,8 @@ impl AppState {
             fixing_in_progress: false,
             search_result: None,
             searching: false,
+            show_confirm: false,
+            show_manual_commands: false,
         }
     }
 
@@ -64,6 +68,8 @@ impl AppState {
         self.fixing_in_progress = false;
         self.search_result = None;
         self.searching = false;
+        self.show_confirm = false;
+        self.show_manual_commands = false;
     }
 }
 
@@ -134,6 +140,33 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_stat
         terminal.draw(|f| ui::draw(f, engine, app_state))?;
 
         if let Event::Key(key) = event::read()? {
+            // Handle confirmation dialog keys first
+            if app_state.show_confirm {
+                match key.code {
+                    KeyCode::Char('y') | KeyCode::Char('Y') => {
+                        // Yes - run the fix
+                        app_state.show_confirm = false;
+                        if let Some(issue) = engine.selected_issue() {
+                            app_state.fixing_in_progress = true;
+                            terminal.draw(|f| ui::draw(f, engine, app_state))?;
+                            app_state.fix_result = Some(run_fix(&issue.fix));
+                            app_state.fixing_in_progress = false;
+                        }
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') => {
+                        // No - show manual commands
+                        app_state.show_confirm = false;
+                        app_state.show_manual_commands = true;
+                    }
+                    KeyCode::Esc => {
+                        // Cancel - just close dialog
+                        app_state.show_confirm = false;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') => {
                     if app_state.show_detail {
@@ -150,42 +183,33 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_stat
                     }
                 }
                 KeyCode::Char('d') => {
-                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching {
+                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching && !app_state.show_confirm {
                         if let Some(issue) = engine.selected_issue() {
-                            // Don't clear everything - user might want to see search + detection together
                             app_state.detection_result = Some(run_detection(&issue.detection));
                         }
                     }
                 }
                 KeyCode::Char('f') => {
-                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching {
-                        if let Some(issue) = engine.selected_issue() {
-                            // Only allow fix if issue was detected
+                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching && !app_state.show_confirm {
+                        if let Some(_issue) = engine.selected_issue() {
+                            // Only show confirm if issue was detected and no fix already applied
                             if let Some(ref detection) = app_state.detection_result {
-                                if detection.issue_found {
-                                    app_state.fixing_in_progress = true;
-                                    // Draw immediately to show "Running..." message
-                                    terminal.draw(|f| ui::draw(f, engine, app_state))?;
-                                    // Run the fix (blocking)
-                                    app_state.fix_result = Some(run_fix(&issue.fix));
-                                    app_state.fixing_in_progress = false;
+                                if detection.issue_found && app_state.fix_result.is_none() {
+                                    app_state.show_confirm = true;
                                 }
                             }
                         }
                     }
                 }
                 KeyCode::Char('g') => {
-                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching {
+                    if app_state.show_detail && !app_state.fixing_in_progress && !app_state.searching && !app_state.show_confirm {
                         if let Some(issue) = engine.selected_issue() {
-                            // Build query from first symptom or name
                             let query = issue.symptoms.first()
                                 .map(|s| s.as_str())
                                 .unwrap_or(&issue.name);
 
                             app_state.searching = true;
-                            // Draw immediately to show "Searching..." message
                             terminal.draw(|f| ui::draw(f, engine, app_state))?;
-                            // Search GitHub (blocking)
                             app_state.search_result = Some(search_issues(query));
                             app_state.searching = false;
                         }

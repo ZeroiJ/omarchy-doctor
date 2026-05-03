@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -94,6 +94,13 @@ fn draw_detail(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
         render_issue_detail(frame, inner_area, issue, app_state);
     }
 
+    // Draw confirmation dialog on top if showing
+    if app_state.show_confirm {
+        if let Some(issue) = engine.selected_issue() {
+            draw_confirm_dialog(frame, &issue.fix);
+        }
+    }
+
     let help_spans = build_help_bar(app_state);
     let help_text = Line::from(help_spans);
     let help_bar = Paragraph::new(help_text).alignment(Alignment::Center);
@@ -103,9 +110,17 @@ fn draw_detail(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
 fn build_help_bar(app_state: &AppState) -> Vec<Span<'_>> {
     let mut spans = vec![];
 
+    // During confirmation, show different help
+    if app_state.show_confirm {
+        spans.push(Span::styled("[y] Yes  ", Style::default().fg(Color::Gray)));
+        spans.push(Span::styled("[n] Show commands  ", Style::default().fg(Color::Gray)));
+        spans.push(Span::styled("[Esc] Cancel", Style::default().fg(Color::Gray)));
+        return spans;
+    }
+
     // Always show [g] Search GitHub on detail screen
     if !app_state.searching {
-        spans.push(Span::styled("[g] Search GitHub  ", Style::default().fg(Color::Gray)));
+        spans.push(Span::styled("[g] GitHub  ", Style::default().fg(Color::Gray)));
     }
 
     // Show [f] Fix if issue detected and not already fixing or fixed
@@ -113,7 +128,7 @@ fn build_help_bar(app_state: &AppState) -> Vec<Span<'_>> {
         if detection.issue_found {
             if app_state.fixing_in_progress {
                 // No fix option while fixing
-            } else if app_state.fix_result.is_none() {
+            } else if app_state.fix_result.is_none() && !app_state.show_manual_commands {
                 spans.push(Span::styled("[f] Fix  ", Style::default().fg(Color::Gray)));
             }
         }
@@ -130,6 +145,65 @@ fn build_help_bar(app_state: &AppState) -> Vec<Span<'_>> {
     spans.push(Span::styled("[q] Quit", Style::default().fg(Color::Gray)));
 
     spans
+}
+
+fn draw_confirm_dialog(frame: &mut Frame, fix_command: &str) {
+    let area = frame.size();
+
+    // Create centered popup
+    let popup_width = 60u16.min(area.width - 4);
+    let popup_height = 12u16.min(area.height - 4);
+    let popup_x = (area.width - popup_width) / 2;
+    let popup_y = (area.height - popup_height) / 2;
+
+    let popup_rect = Rect::new(popup_x, popup_y, popup_width, popup_height);
+
+    // Clear the background under the popup
+    frame.render_widget(Clear, popup_rect);
+
+    // Draw the dialog box with thick borders
+    let block = Block::default()
+        .title(" Fix this issue? ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .border_type(ratatui::widgets::BorderType::Thick);
+
+    let inner = block.inner(popup_rect);
+    frame.render_widget(block, popup_rect);
+
+    // Build the dialog content
+    let mut lines: Vec<Line> = vec![];
+
+    // Empty line for spacing
+    lines.push(Line::from(""));
+
+    // Fix command in green code-style
+    lines.push(Line::from(vec![
+        Span::styled("  ", Style::default()),
+        Span::styled(fix_command, Style::default().fg(Color::Green)),
+    ]));
+
+    // Empty lines for spacing
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+
+    // Options
+    lines.push(Line::from(vec![
+        Span::styled("  [y] ", Style::default().fg(Color::Gray)),
+        Span::styled("Yes, fix it now", Style::default().fg(Color::White)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  [n] ", Style::default().fg(Color::Gray)),
+        Span::styled("No, just show commands", Style::default().fg(Color::White)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  [Esc] ", Style::default().fg(Color::Gray)),
+        Span::styled("Cancel", Style::default().fg(Color::White)),
+    ]));
+
+    let content = Paragraph::new(lines);
+    frame.render_widget(content, inner);
 }
 
 fn render_issue_detail(
@@ -160,6 +234,11 @@ fn render_issue_detail(
 
     // Add space for fix result if present
     if app_state.fix_result.is_some() {
+        constraints.push(Constraint::Length(4));
+    }
+
+    // Add space for manual commands if user pressed 'n'
+    if app_state.show_manual_commands {
         constraints.push(Constraint::Length(4));
     }
 
@@ -351,6 +430,24 @@ fn render_issue_detail(
                     .wrap(Wrap { trim: false });
                 frame.render_widget(result_para, chunks[chunk_idx]);
             }
+            chunk_idx += 1;
+        }
+    }
+
+    // Manual commands (if user pressed 'n' on confirmation)
+    if app_state.show_manual_commands {
+        if chunk_idx < chunks.len() {
+            let manual_block = Block::default()
+                .title("💡 To fix manually, run:")
+                .title_style(Style::default().fg(Color::Cyan))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan));
+
+            let manual_text = Paragraph::new(&issue.fix as &str)
+                .block(manual_block)
+                .style(Style::default().fg(Color::White))
+                .wrap(Wrap { trim: false });
+            frame.render_widget(manual_text, chunks[chunk_idx]);
             chunk_idx += 1;
         }
     }
