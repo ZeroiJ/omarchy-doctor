@@ -1,7 +1,14 @@
 [package]
-name = "omarchy-doctor"
+name = "omadoctor"
 version = "0.1.0"
 edition = "2021"
+description = "Diagnose and fix common Omarchy Linux issues"
+license = "MIT"
+repository = "https://github.com/ZeroiJ/omarchy-doctor.git"
+
+[[bin]]
+name = "omadoctor"
+path = "src/main.rs"
 
 [dependencies]
 ratatui = "0.24"
@@ -10,3 +17,5 @@ toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 urlencoding = "2.1"
+clap = { version = "4", features = ["derive"] }
+dirs = "5"

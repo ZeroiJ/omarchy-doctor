@@ -1,6 +1,6 @@
 use crate::issue::{Issue, IssueFile};
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct Engine {
@@ -18,36 +18,63 @@ impl Engine {
         engine
     }
 
-    fn load_issues(&mut self) {
-        let fixes_dir = Path::new("./fixes");
+    fn get_fixes_dirs() -> Vec<PathBuf> {
+        let mut dirs = vec![];
 
-        if !fixes_dir.exists() {
-            eprintln!("Warning: fixes/ directory not found");
-            return;
+        // 1. User-local directory: ~/.local/share/omadoctor/fixes/
+        if let Some(home_dir) = dirs::home_dir() {
+            let local_dir = home_dir.join(".local/share/omadoctor/fixes");
+            dirs.push(local_dir);
         }
 
-        let mut entries: Vec<_> = fs::read_dir(fixes_dir)
-            .expect("Failed to read fixes directory")
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                entry
-                    .path()
-                    .extension()
-                    .map(|ext| ext == "toml")
-                    .unwrap_or(false)
-            })
-            .collect();
+        // 2. System-wide directory: /usr/share/omadoctor/fixes/
+        dirs.push(PathBuf::from("/usr/share/omadoctor/fixes"));
 
-        entries.sort_by_key(|e| e.file_name());
+        // 3. Development fallback: ./fixes/
+        dirs.push(PathBuf::from("./fixes"));
 
-        for entry in entries {
-            let path = entry.path();
-            let content = fs::read_to_string(&path).expect("Failed to read TOML file");
+        dirs
+    }
 
-            let issue_file: IssueFile =
-                toml::from_str(&content).expect(&format!("Failed to parse {:?}", path));
+    fn load_issues(&mut self) {
+        let fixes_dirs = Self::get_fixes_dirs();
+        let mut found_any = false;
 
-            self.issues.extend(issue_file.issue);
+        for fixes_dir in fixes_dirs {
+            if fixes_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&fixes_dir) {
+                    let mut toml_files: Vec<_> = entries
+                        .filter_map(|entry| entry.ok())
+                        .filter(|entry| {
+                            entry
+                                .path()
+                                .extension()
+                                .map(|ext| ext == "toml")
+                                .unwrap_or(false)
+                        })
+                        .collect();
+
+                    toml_files.sort_by_key(|e| e.file_name());
+
+                    for entry in toml_files {
+                        let path = entry.path();
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            if let Ok(issue_file) = toml::from_str::<IssueFile>(&content) {
+                                self.issues.extend(issue_file.issue);
+                                found_any = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if !found_any {
+            eprintln!("Warning: No TOML files found in any fixes directory");
+            eprintln!("Searched in:");
+            for dir in Self::get_fixes_dirs() {
+                eprintln!("  - {}", dir.display());
+            }
         }
 
         // Sort alphabetically by name for display

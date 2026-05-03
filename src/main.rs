@@ -8,6 +8,7 @@ use ratatui::{
     Terminal,
 };
 use std::io;
+use clap::Parser;
 
 mod detector;
 mod engine;
@@ -20,6 +21,21 @@ use detector::{run_detection, DetectionResult};
 use engine::Engine;
 use fixer::{run_fix, FixResult};
 use github::{search_issues, SearchResult};
+
+#[derive(Parser)]
+#[command(
+    name = "omadoctor",
+    version = "0.1.0",
+    about = "Diagnose and fix common Omarchy Linux issues",
+    long_about = "omadoctor is a CLI tool for Omarchy Linux that detects and fixes common system issues.
+
+Run without arguments for an interactive TUI, or use --scan for non-interactive scanning."
+)]
+struct Cli {
+    /// Run all detections non-interactively and report results
+    #[arg(short, long)]
+    scan: bool,
+}
 
 struct AppState {
     show_detail: bool,
@@ -52,13 +68,21 @@ impl AppState {
 }
 
 fn main() -> Result<(), io::Error> {
+    let cli = Cli::parse();
+
+    let mut engine = Engine::new();
+
+    if cli.scan {
+        return run_scan_mode(&engine);
+    }
+
+    // TUI mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture, Clear(ClearType::All))?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut engine = Engine::new();
     let mut app_state = AppState::new();
     let res = run_app(&mut terminal, &mut engine, &mut app_state);
 
@@ -75,6 +99,34 @@ fn main() -> Result<(), io::Error> {
     }
 
     Ok(())
+}
+
+fn run_scan_mode(engine: &Engine) -> Result<(), io::Error> {
+    println!("🔍 Scanning your system...\n");
+
+    let mut issues_found = 0;
+
+    for issue in &engine.issues {
+        let detection = run_detection(&issue.detection);
+        let icon = issue.display_name().chars().next().unwrap_or('🔧');
+
+        if detection.issue_found {
+            println!("❌ {}: {}", icon, issue.name);
+            issues_found += 1;
+        } else {
+            println!("✅ {}: {}", icon, issue.name);
+        }
+    }
+
+    println!();
+
+    if issues_found > 0 {
+        println!("{} issue(s) found. Run `omadoctor` for interactive fixes.", issues_found);
+        std::process::exit(1);
+    } else {
+        println!("All systems operational. No issues found!");
+        std::process::exit(0);
+    }
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_state: &mut AppState) -> io::Result<()> {
