@@ -1,0 +1,17 @@
+[[issue]]
+id = "steam_lib32_missing"
+category = "gaming"
+name = "Steam won't launch - missing 32-bit libraries"
+symptoms = ["steam won't launch", "libGL error", "missing 32-bit", "steam black screen"]
+detection = "command -v steam && ! pacman -Qi lib32-mesa"
+fix = "sudo pacman -S lib32-mesa lib32-vulkan-radeon"
+safe = true
+
+[[issue]]
+id = "steam_runtime_issues"
+category = "gaming"
+name = "Steam games won't start - runtime issues"
+symptoms = ["steam launches but games don't", "proton not working"]
+detection = "command -v steam && test -d ~/.steam"
+fix = "steam-runtime --reset"
+safe = true

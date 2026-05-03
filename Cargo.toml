@@ -1,0 +1,12 @@
+[package]
+name = "omarchy-doctor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui = "0.24"
+crossterm = "0.27"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+urlencoding = "2.1"

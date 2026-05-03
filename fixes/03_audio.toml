@@ -1,0 +1,17 @@
+[[issue]]
+id = "no_audio_pulse"
+category = "audio"
+name = "No audio output - PulseAudio not running"
+symptoms = ["no sound", "audio not working", "speaker silent"]
+detection = "! pactl info >/dev/null 2>&1"
+fix = "systemctl --user start pulseaudio && systemctl --user enable pulseaudio"
+safe = true
+
+[[issue]]
+id = "bluetooth_audio_lag"
+category = "audio"
+name = "Bluetooth audio lag and stutter"
+symptoms = ["bluetooth audio delay", "audio stuttering", "wireless headphones lag"]
+detection = "pactl list | grep -q bluez"
+fix = "echo 'options bluetooth disable_ertm=y' | sudo tee /etc/modprobe.d/bluetooth-fix.conf && sudo modprobe -r bluetooth && sudo modprobe bluetooth"
+safe = true

@@ -1,0 +1,17 @@
+[[issue]]
+id = "zoom_camera_black"
+category = "video-conferencing"
+name = "Zoom camera shows black screen"
+symptoms = ["camera black", "no video in zoom", "zoom camera not working"]
+detection = "command -v zoom && ! v4l2-ctl --list-devices | grep -q video"
+fix = "sudo modprobe v4l2loopback && restart zoom"
+safe = true
+
+[[issue]]
+id = "teams_microphone_mute"
+category = "video-conferencing"
+name = "Teams microphone muted by default"
+symptoms = ["mic muted", "teams no audio input"]
+detection = "command -v teams"
+fix = "pactl set-source-mute @DEFAULT_SOURCE@ false"
+safe = true

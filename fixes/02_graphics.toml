@@ -1,0 +1,17 @@
+[[issue]]
+id = "gpu_crash_amd"
+category = "graphics"
+name = "GPU crashes under load - AMD"
+symptoms = ["screen freezes", "gpu crash", "amd driver crash"]
+detection = "lspci | grep -i amd && dmesg | grep -i 'gpu crash'"
+fix = "sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"\"/GRUB_CMDLINE_LINUX_DEFAULT=\"amdgpu.noretry=0\"/' /etc/default/grub && sudo grub-mkconfig -o /boot/grub/grub.cfg"
+safe = false
+
+[[issue]]
+id = "nvidia_screen_tearing"
+category = "graphics"
+name = "NVIDIA screen tearing"
+symptoms = ["screen tearing", "vsync not working", "nvidia tearing"]
+detection = "lspci | grep -i nvidia"
+fix = "nvidia-settings --assign CurrentMetaMode=\"nvidia-auto-select +0+0 { ForceCompositionPipeline=On }\""
+safe = true

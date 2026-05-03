@@ -1,0 +1,17 @@
+[[issue]]
+id = "monitor_not_detected_dp"
+category = "display"
+name = "Monitor not detected - DisplayPort"
+symptoms = ["monitor not detected", "blank screen", "displayport no signal"]
+detection = "xrandr | grep -q 'DP.*disconnected'"
+fix = "xrandr --output DP-1 --auto --right-of eDP-1"
+safe = true
+
+[[issue]]
+id = "hiDPI_scaling_wrong"
+category = "display"
+name = "HiDPI display scaling incorrect"
+symptoms = ["tiny fonts", "blurry apps", "scaling wrong"]
+detection = "xdpyinfo | grep -q 'resolution.*96' && xrandr | grep -q '3840x2160'"
+fix = "echo 'Xft.dpi: 192' | xrdb -merge && gsettings set org.gnome.desktop.interface scaling-factor 2"
+safe = true

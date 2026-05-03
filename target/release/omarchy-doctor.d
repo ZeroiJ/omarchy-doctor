@@ -1,0 +1,1 @@
+/home/zeroij/omarchy-doctor/target/release/omarchy-doctor: /home/zeroij/omarchy-doctor/src/detector.rs /home/zeroij/omarchy-doctor/src/engine.rs /home/zeroij/omarchy-doctor/src/fixer.rs /home/zeroij/omarchy-doctor/src/github.rs /home/zeroij/omarchy-doctor/src/issue.rs /home/zeroij/omarchy-doctor/src/main.rs /home/zeroij/omarchy-doctor/src/ui.rs
