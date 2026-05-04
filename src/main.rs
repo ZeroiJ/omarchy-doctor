@@ -8,6 +8,7 @@ use ratatui::{
     Terminal,
 };
 use std::io;
+use std::time::{Duration, Instant};
 use clap::Parser;
 
 mod detector;
@@ -20,7 +21,7 @@ mod ui;
 use detector::{run_detection, DetectionResult};
 use engine::Engine;
 use fixer::{run_fix_with_progress, FixResult, ProgressFixHandle};
-use github::{search_issues, SearchResult};
+use github::{check_for_updates, download_and_install, get_current_version, search_issues, SearchResult};
 
 #[derive(Parser)]
 #[command(
@@ -35,6 +36,10 @@ struct Cli {
     /// Run all detections non-interactively and report results
     #[arg(short, long)]
     scan: bool,
+
+    /// Skip automatic update check on startup
+    #[arg(long)]
+    skip_update: bool,
 }
 
 struct AppState {
@@ -48,6 +53,8 @@ struct AppState {
     searching: bool,
     show_confirm: bool,
     show_manual_commands: bool,
+    update_message: Option<String>,
+    update_message_time: Option<Instant>,
 }
 
 impl AppState {
@@ -63,6 +70,8 @@ impl AppState {
             searching: false,
             show_confirm: false,
             show_manual_commands: false,
+            update_message: None,
+            update_message_time: None,
         }
     }
 
@@ -77,6 +86,20 @@ impl AppState {
         self.show_confirm = false;
         self.show_manual_commands = false;
     }
+
+    fn set_update_message(&mut self, message: String) {
+        self.update_message = Some(message);
+        self.update_message_time = Some(Instant::now());
+    }
+
+    fn check_update_message_expired(&mut self) {
+        if let Some(time) = self.update_message_time {
+            if time.elapsed() > Duration::from_secs(5) {
+                self.update_message = None;
+                self.update_message_time = None;
+            }
+        }
+    }
 }
 
 fn main() -> Result<(), io::Error> {
@@ -88,6 +111,17 @@ fn main() -> Result<(), io::Error> {
         return run_scan_mode(&engine);
     }
 
+    // Check for updates before launching TUI (unless skipped)
+    let mut update_message: Option<String> = None;
+    if !cli.skip_update {
+        update_message = check_and_apply_update();
+    }
+
+    // Reload engine if update was applied to get new fixes
+    if update_message.is_some() {
+        engine = Engine::new();
+    }
+
     // TUI mode
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -96,6 +130,12 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app_state = AppState::new();
+    
+    // Set update message if available
+    if let Some(msg) = update_message {
+        app_state.set_update_message(msg);
+    }
+
     let res = run_app(&mut terminal, &mut engine, &mut app_state);
 
     disable_raw_mode()?;
@@ -111,6 +151,37 @@ fn main() -> Result<(), io::Error> {
     }
 
     Ok(())
+}
+
+fn check_and_apply_update() -> Option<String> {
+    let current_version = get_current_version();
+    
+    eprintln!("🔍 Checking for fix database updates...");
+    
+    let check_result = check_for_updates(&current_version);
+
+    if check_result.update_available {
+        if let Some(url) = check_result.download_url {
+            let new_version = check_result.new_version.unwrap_or_else(|| "unknown".to_string());
+            eprintln!("📥 Update available: {} -> {}", current_version, new_version);
+            eprintln!("   Downloading fixes.zip...");
+
+            match download_and_install(&url) {
+                Ok(count) => {
+                    eprintln!("✅ Successfully installed {} new fixes", count);
+                    return Some(format!("✅ Fix database updated: {} new fixes installed", count));
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Update download failed: {}", e);
+                    // Silent fail - don't bother user
+                }
+            }
+        }
+    } else {
+        eprintln!("✓ Fix database is up to date (version {})", current_version);
+    }
+
+    None
 }
 
 fn run_scan_mode(engine: &Engine) -> Result<(), io::Error> {
@@ -143,6 +214,9 @@ fn run_scan_mode(engine: &Engine) -> Result<(), io::Error> {
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_state: &mut AppState) -> io::Result<()> {
     loop {
+        // Check if update message should expire
+        app_state.check_update_message_expired();
+
         terminal.draw(|f| ui::draw(f, engine, app_state))?;
 
         // Check for progress updates if fix is in progress
@@ -172,9 +246,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_stat
 
         // Use a shorter timeout for event polling when fixing to keep UI responsive
         let poll_timeout = if app_state.fixing_in_progress {
-            std::time::Duration::from_millis(50)
+            Duration::from_millis(50)
         } else {
-            std::time::Duration::from_millis(100)
+            Duration::from_millis(100)
         };
 
         if crossterm::event::poll(poll_timeout)? {

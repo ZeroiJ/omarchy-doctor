@@ -15,16 +15,45 @@ pub fn draw(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
     if app_state.show_detail {
         draw_detail(frame, engine, app_state);
     } else {
-        draw_list(frame, engine);
+        draw_list(frame, engine, app_state);
     }
 }
 
-fn draw_list(frame: &mut Frame, engine: &Engine) {
+fn draw_list(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
+    // Check if we have an update message to show
+    let has_update_message = app_state.update_message.is_some();
+
+    let constraints = if has_update_message {
+        vec![
+            Constraint::Length(1),  // Update notification banner
+            Constraint::Min(3),     // Main content
+            Constraint::Length(1),  // Help bar
+        ]
+    } else {
+        vec![
+            Constraint::Min(3),     // Main content
+            Constraint::Length(1),  // Help bar
+        ]
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([Constraint::Min(3), Constraint::Length(1)])
+        .constraints(constraints)
         .split(frame.size());
+
+    // Draw update notification banner if present
+    let content_idx = if has_update_message {
+        if let Some(ref message) = app_state.update_message {
+            let banner = Paragraph::new(message.as_str())
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Black).bg(Color::Green));
+            frame.render_widget(banner, chunks[0]);
+        }
+        1
+    } else {
+        0
+    };
 
     let main_block = Block::default()
         .title("🔧 OMARCHY DOCTOR v1.0")
@@ -32,8 +61,8 @@ fn draw_list(frame: &mut Frame, engine: &Engine) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
 
-    let inner_area = main_block.inner(chunks[0]);
-    frame.render_widget(main_block, chunks[0]);
+    let inner_area = main_block.inner(chunks[content_idx]);
+    frame.render_widget(main_block, chunks[content_idx]);
 
     if engine.issues.is_empty() {
         let empty_msg = Paragraph::new("No issues found. Add TOML files to the fixes/ directory.")
@@ -64,6 +93,7 @@ fn draw_list(frame: &mut Frame, engine: &Engine) {
         frame.render_widget(list, inner_area);
     }
 
+    let help_idx = if has_update_message { 2 } else { 1 };
     let help_text = Line::from(vec![
         Span::styled("[↑↓] Navigate  ", Style::default().fg(Color::Gray)),
         Span::styled("[Enter] Select  ", Style::default().fg(Color::Gray)),
@@ -71,7 +101,7 @@ fn draw_list(frame: &mut Frame, engine: &Engine) {
     ]);
 
     let help_bar = Paragraph::new(help_text).alignment(Alignment::Center);
-    frame.render_widget(help_bar, chunks[1]);
+    frame.render_widget(help_bar, chunks[help_idx]);
 }
 
 fn draw_detail(frame: &mut Frame, engine: &Engine, app_state: &AppState) {

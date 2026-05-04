@@ -19,3 +19,5 @@ reqwest = { version = "0.12", features = ["blocking", "json"] }
 urlencoding = "2.1"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
+zip = "2"
+flate2 = "1"
