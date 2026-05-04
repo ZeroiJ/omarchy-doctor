@@ -13,14 +13,20 @@ pub struct Engine {
 
 impl Engine {
     pub fn new() -> Self {
+        let (engine, _messages) = Self::new_with_messages();
+        engine
+    }
+
+    /// Create engine and return startup messages for TUI mode
+    pub fn new_with_messages() -> (Self, Vec<String>) {
         let mut engine = Self {
             issues: Vec::new(),
             selected_index: 0,
             loaded_from: Vec::new(),
             total_loaded: 0,
         };
-        engine.load_all_issues();
-        engine
+        let messages = engine.load_all_issues();
+        (engine, messages)
     }
 
     fn get_fixes_dirs() -> Vec<(PathBuf, &'static str)> {
@@ -41,10 +47,11 @@ impl Engine {
         dirs
     }
 
-    fn load_all_issues(&mut self) {
+    fn load_all_issues(&mut self) -> Vec<String> {
         let fixes_dirs = Self::get_fixes_dirs();
         let mut all_issues: HashMap<String, Issue> = HashMap::new();
         let mut sources_loaded = Vec::new();
+        let mut messages = Vec::new();
 
         for (fixes_dir, source_name) in fixes_dirs {
             if fixes_dir.exists() {
@@ -63,18 +70,20 @@ impl Engine {
         self.loaded_from = sources_loaded;
         self.issues = issues;
 
-        // Log what we loaded
+        // Collect messages instead of printing
         if !self.loaded_from.is_empty() {
-            eprintln!("✅ Loaded {} fixes from: {}", 
+            messages.push(format!("✅ Loaded {} fixes from: {}", 
                 self.total_loaded,
                 self.loaded_from.join(", ")
-            );
+            ));
         } else {
-            eprintln!("⚠️ No fixes loaded. Checked paths:");
+            messages.push("⚠️ No fixes loaded. Checked paths:".to_string());
             for (dir, name) in Self::get_fixes_dirs() {
-                eprintln!("  - {} ({})", dir.display(), name);
+                messages.push(format!("  - {} ({})", dir.display(), name));
             }
         }
+
+        messages
     }
 
     fn load_from_directory(&self, fixes_dir: &PathBuf, issues_map: &mut HashMap<String, Issue>) -> usize {

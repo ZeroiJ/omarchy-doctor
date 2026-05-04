@@ -55,6 +55,8 @@ struct AppState {
     show_manual_commands: bool,
     update_message: Option<String>,
     update_message_time: Option<Instant>,
+    startup_messages: Vec<String>,
+    startup_messages_time: Option<Instant>,
 }
 
 impl AppState {
@@ -72,6 +74,8 @@ impl AppState {
             show_manual_commands: false,
             update_message: None,
             update_message_time: None,
+            startup_messages: Vec::new(),
+            startup_messages_time: None,
         }
     }
 
@@ -100,29 +104,49 @@ impl AppState {
             }
         }
     }
+
+    fn add_startup_message(&mut self, message: String) {
+        self.startup_messages.push(message);
+        if self.startup_messages_time.is_none() {
+            self.startup_messages_time = Some(Instant::now());
+        }
+    }
+
+    fn check_startup_messages_expired(&mut self) {
+        if let Some(time) = self.startup_messages_time {
+            if time.elapsed() > Duration::from_secs(3) {
+                self.startup_messages.clear();
+                self.startup_messages_time = None;
+            }
+        }
+    }
 }
 
 fn main() -> Result<(), io::Error> {
     let cli = Cli::parse();
 
-    let mut engine = Engine::new();
-
+    // For scan mode, we can print directly since there's no TUI
     if cli.scan {
+        let engine = Engine::new();
         return run_scan_mode(&engine);
     }
+
+    // TUI mode - collect startup messages instead of printing
+    let mut startup_messages: Vec<String> = Vec::new();
+    
+    // Get initial engine and collect loading messages
+    let (mut engine, engine_messages) = Engine::new_with_messages();
+    startup_messages.extend(engine_messages);
 
     // Check for updates before launching TUI (unless skipped)
     let mut update_message: Option<String> = None;
     if !cli.skip_update {
-        update_message = check_and_apply_update();
+        let (msg, update_msgs) = check_and_apply_update_with_messages();
+        startup_messages.extend(update_msgs);
+        update_message = msg;
     }
 
-    // Reload engine if update was applied to get new fixes
-    if update_message.is_some() {
-        engine = Engine::new();
-    }
-
-    // TUI mode
+    // TUI mode - now enter alternate screen
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture, Clear(ClearType::All))?;
@@ -130,6 +154,11 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app_state = AppState::new();
+    
+    // Add startup messages
+    for msg in startup_messages {
+        app_state.add_startup_message(msg);
+    }
     
     // Set update message if available
     if let Some(msg) = update_message {
@@ -153,35 +182,35 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn check_and_apply_update() -> Option<String> {
+fn check_and_apply_update_with_messages() -> (Option<String>, Vec<String>) {
     let current_version = get_current_version();
+    let mut messages = Vec::new();
     
-    eprintln!("🔍 Checking for fix database updates...");
+    messages.push("🔍 Checking for fix database updates...".to_string());
     
     let check_result = check_for_updates(&current_version);
 
     if check_result.update_available {
         if let Some(url) = check_result.download_url {
             let new_version = check_result.new_version.unwrap_or_else(|| "unknown".to_string());
-            eprintln!("📥 Update available: {} -> {}", current_version, new_version);
-            eprintln!("   Downloading fixes.zip...");
+            messages.push(format!("📥 Update available: {} -> {}", current_version, new_version));
+            messages.push("   Downloading fixes.zip...".to_string());
 
             match download_and_install(&url) {
                 Ok(count) => {
-                    eprintln!("✅ Successfully installed {} new fixes", count);
-                    return Some(format!("✅ Fix database updated: {} new fixes installed", count));
+                    messages.push(format!("✅ Successfully installed {} new fixes", count));
+                    return (Some(format!("✅ Fix database updated: {} new fixes installed", count)), messages);
                 }
-                Err(e) => {
-                    eprintln!("⚠️ Update download failed: {}", e);
-                    // Silent fail - don't bother user
+                Err(_e) => {
+                    // Silent fail - don't bother user, don't add error message
                 }
             }
         }
     } else {
-        eprintln!("✓ Fix database is up to date (version {})", current_version);
+        messages.push(format!("✓ Fix database is up to date (version {})", current_version));
     }
 
-    None
+    (None, messages)
 }
 
 fn run_scan_mode(engine: &Engine) -> Result<(), io::Error> {
@@ -214,8 +243,9 @@ fn run_scan_mode(engine: &Engine) -> Result<(), io::Error> {
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, engine: &mut Engine, app_state: &mut AppState) -> io::Result<()> {
     loop {
-        // Check if update message should expire
+        // Check if messages should expire
         app_state.check_update_message_expired();
+        app_state.check_startup_messages_expired();
 
         terminal.draw(|f| ui::draw(f, engine, app_state))?;
 

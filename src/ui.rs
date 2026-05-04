@@ -20,21 +20,21 @@ pub fn draw(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
 }
 
 fn draw_list(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
-    // Check if we have an update message to show
+    // Check what banners we need to show
     let has_update_message = app_state.update_message.is_some();
+    let has_startup_messages = !app_state.startup_messages.is_empty();
 
-    let constraints = if has_update_message {
-        vec![
-            Constraint::Length(1),  // Update notification banner
-            Constraint::Min(3),     // Main content
-            Constraint::Length(1),  // Help bar
-        ]
-    } else {
-        vec![
-            Constraint::Min(3),     // Main content
-            Constraint::Length(1),  // Help bar
-        ]
-    };
+    // Calculate constraints based on what needs to be shown
+    let mut constraints: Vec<Constraint> = vec![];
+
+    if has_startup_messages {
+        constraints.push(Constraint::Length(1));  // Startup messages banner
+    }
+    if has_update_message {
+        constraints.push(Constraint::Length(1));  // Update notification banner
+    }
+    constraints.push(Constraint::Min(3));     // Main content
+    constraints.push(Constraint::Length(1));  // Help bar
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -42,18 +42,27 @@ fn draw_list(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
         .constraints(constraints)
         .split(frame.size());
 
+    // Draw startup messages banner if present (dimmed gray text)
+    let mut content_idx = 0;
+    if has_startup_messages {
+        let messages_text = app_state.startup_messages.join(" | ");
+        let banner = Paragraph::new(messages_text)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(banner, chunks[content_idx]);
+        content_idx += 1;
+    }
+
     // Draw update notification banner if present
-    let content_idx = if has_update_message {
+    if has_update_message {
         if let Some(ref message) = app_state.update_message {
             let banner = Paragraph::new(message.as_str())
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Black).bg(Color::Green));
-            frame.render_widget(banner, chunks[0]);
+            frame.render_widget(banner, chunks[content_idx]);
         }
-        1
-    } else {
-        0
-    };
+        content_idx += 1;
+    }
 
     let main_block = Block::default()
         .title("🔧 OMARCHY DOCTOR v1.0")
@@ -93,7 +102,8 @@ fn draw_list(frame: &mut Frame, engine: &Engine, app_state: &AppState) {
         frame.render_widget(list, inner_area);
     }
 
-    let help_idx = if has_update_message { 2 } else { 1 };
+    // Help bar is always the last chunk
+    let help_idx = chunks.len() - 1;
     let help_text = Line::from(vec![
         Span::styled("[↑↓] Navigate  ", Style::default().fg(Color::Gray)),
         Span::styled("[Enter] Select  ", Style::default().fg(Color::Gray)),

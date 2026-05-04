@@ -100,7 +100,6 @@ pub struct UpdateCheckResult {
     pub update_available: bool,
     pub download_url: Option<String>,
     pub new_version: Option<String>,
-    pub current_version: String,
 }
 
 pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
@@ -114,7 +113,6 @@ pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
                 update_available: false,
                 download_url: None,
                 new_version: None,
-                current_version: current_version.to_string(),
             }
         }
     };
@@ -147,14 +145,12 @@ pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
                                 update_available: fixes_zip.is_some(),
                                 download_url: fixes_zip,
                                 new_version: Some(release.tag_name),
-                                current_version: current_version.to_string(),
                             }
                         } else {
                             UpdateCheckResult {
                                 update_available: false,
                                 download_url: None,
                                 new_version: None,
-                                current_version: current_version.to_string(),
                             }
                         }
                     }
@@ -162,7 +158,6 @@ pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
                         update_available: false,
                         download_url: None,
                         new_version: None,
-                        current_version: current_version.to_string(),
                     },
                 }
             } else {
@@ -170,7 +165,6 @@ pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
                     update_available: false,
                     download_url: None,
                     new_version: None,
-                    current_version: current_version.to_string(),
                 }
             }
         }
@@ -178,7 +172,6 @@ pub fn check_for_updates(current_version: &str) -> UpdateCheckResult {
             update_available: false,
             download_url: None,
             new_version: None,
-            current_version: current_version.to_string(),
         },
     }
 }
