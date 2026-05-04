@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -367,21 +367,53 @@ fn render_issue_detail(
         }
     }
 
-    // Fix in progress message
+    // Fix in progress - animated progress bar
     if app_state.fixing_in_progress {
         if chunk_idx < chunks.len() {
-            let progress_block = Block::default()
-                .title("🔄 Running fix...")
-                .title_style(Style::default().fg(Color::Black))
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow))
-                .style(Style::default().bg(Color::Yellow));
+            let progress_value = app_state.fix_progress.unwrap_or(0) as f64;
+            let is_complete = progress_value >= 100.0;
 
-            let progress = Paragraph::new("Please wait while the fix command executes...")
+            // Title changes when complete
+            let title = if is_complete {
+                "✅ Done!"
+            } else {
+                "📦 Fixing..."
+            };
+
+            // Color changes from yellow to green when complete
+            let gauge_color = if is_complete {
+                Color::Green
+            } else {
+                Color::Yellow
+            };
+
+            let progress_block = Block::default()
+                .title(title)
+                .title_style(Style::default().fg(if is_complete { Color::White } else { Color::Black }))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(gauge_color));
+
+            // Status message below the bar
+            let status_text = if is_complete {
+                "Fix completed!"
+            } else if progress_value < 30.0 {
+                "Preparing..."
+            } else if progress_value < 60.0 {
+                "Applying fix..."
+            } else if progress_value < 85.0 {
+                "Installing packages..."
+            } else {
+                "Finalizing..."
+            };
+
+            // Create the gauge
+            let gauge = Gauge::default()
                 .block(progress_block)
-                .style(Style::default().fg(Color::Black))
-                .alignment(Alignment::Center);
-            frame.render_widget(progress, chunks[chunk_idx]);
+                .gauge_style(Style::default().fg(gauge_color).bg(Color::Black))
+                .percent(progress_value as u16)
+                .label(format!("{:.0}% - {}", progress_value, status_text));
+
+            frame.render_widget(gauge, chunks[chunk_idx]);
             chunk_idx += 1;
         }
     }
