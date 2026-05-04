@@ -349,50 +349,36 @@ fn render_issue_detail(
     frame.render_widget(safety, chunks[chunk_idx]);
     chunk_idx += 1;
 
-    // Detection result (if available)
+    // Detection result (if available) - simple colored text line
     if let Some(ref result) = app_state.detection_result {
         if chunk_idx < chunks.len() {
+            let mut result_lines: Vec<Line> = vec![];
+
             if result.issue_found {
-                // Red box - issue detected
-                let result_block = Block::default()
-                    .title("⚠️ ISSUE DETECTED — needs fixing")
-                    .title_style(Style::default().fg(Color::White))
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Red))
-                    .style(Style::default().bg(Color::Red));
-
-                let result_text = if result.output.is_empty() {
-                    "The detection command indicated this issue is present on your system.".to_string()
-                } else {
-                    format!("Output: {}", result.output)
-                };
-
-                let result_para = Paragraph::new(result_text)
-                    .block(result_block)
-                    .style(Style::default().fg(Color::White))
-                    .wrap(Wrap { trim: false });
-                frame.render_widget(result_para, chunks[chunk_idx]);
+                // Red status line
+                result_lines.push(Line::from(vec![
+                    Span::styled("Detection result: ", Style::default().fg(Color::Gray)),
+                    Span::styled("⚠️ Issue detected — needs fixing", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]));
             } else {
-                // Green box - no issue
-                let result_block = Block::default()
-                    .title("✅ No issue found")
-                    .title_style(Style::default().fg(Color::White))
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Green))
-                    .style(Style::default().bg(Color::Green));
-
-                let result_text = if result.output.is_empty() {
-                    "The detection command indicated no issue on your system.".to_string()
-                } else {
-                    format!("Output: {}", result.output)
-                };
-
-                let result_para = Paragraph::new(result_text)
-                    .block(result_block)
-                    .style(Style::default().fg(Color::White))
-                    .wrap(Wrap { trim: false });
-                frame.render_widget(result_para, chunks[chunk_idx]);
+                // Green status line
+                result_lines.push(Line::from(vec![
+                    Span::styled("Detection result: ", Style::default().fg(Color::Gray)),
+                    Span::styled("✅ No issue found", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                ]));
             }
+
+            // Show output in dimmed text if present
+            if !result.output.is_empty() {
+                result_lines.push(Line::from(""));
+                result_lines.push(Line::from(vec![
+                    Span::styled("Output: ", Style::default().fg(Color::Gray)),
+                    Span::styled(&result.output, Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+
+            let result_para = Paragraph::new(result_lines);
+            frame.render_widget(result_para, chunks[chunk_idx]);
             chunk_idx += 1;
         }
     }
@@ -448,50 +434,36 @@ fn render_issue_detail(
         }
     }
 
-    // Fix result (if available)
+    // Fix result (if available) - simple colored text line
     if let Some(ref result) = app_state.fix_result {
         if chunk_idx < chunks.len() {
+            let mut result_lines: Vec<Line> = vec![];
+
             if result.success {
-                // Green box - fix succeeded
-                let result_block = Block::default()
-                    .title("✅ Fix applied successfully!")
-                    .title_style(Style::default().fg(Color::White))
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Green))
-                    .style(Style::default().bg(Color::Green));
-
-                let result_text = if result.output.is_empty() {
-                    "The fix command completed successfully.".to_string()
-                } else {
-                    format!("Output:\n{}", result.output)
-                };
-
-                let result_para = Paragraph::new(result_text)
-                    .block(result_block)
-                    .style(Style::default().fg(Color::White))
-                    .wrap(Wrap { trim: false });
-                frame.render_widget(result_para, chunks[chunk_idx]);
+                // Green status line
+                result_lines.push(Line::from(vec![
+                    Span::styled("Fix result: ", Style::default().fg(Color::Gray)),
+                    Span::styled("✅ Fix applied successfully", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                ]));
             } else {
-                // Red box - fix failed
-                let result_block = Block::default()
-                    .title("❌ Fix failed")
-                    .title_style(Style::default().fg(Color::White))
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Red))
-                    .style(Style::default().bg(Color::Red));
-
-                let result_text = if result.output.is_empty() {
-                    "The fix command returned an error.".to_string()
-                } else {
-                    format!("Output:\n{}", result.output)
-                };
-
-                let result_para = Paragraph::new(result_text)
-                    .block(result_block)
-                    .style(Style::default().fg(Color::White))
-                    .wrap(Wrap { trim: false });
-                frame.render_widget(result_para, chunks[chunk_idx]);
+                // Red status line
+                result_lines.push(Line::from(vec![
+                    Span::styled("Fix result: ", Style::default().fg(Color::Gray)),
+                    Span::styled("❌ Fix failed", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]));
             }
+
+            // Show output in dimmed text if present
+            if !result.output.is_empty() {
+                result_lines.push(Line::from(""));
+                result_lines.push(Line::from(vec![
+                    Span::styled("Output: ", Style::default().fg(Color::Gray)),
+                    Span::styled(&result.output, Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+
+            let result_para = Paragraph::new(result_lines);
+            frame.render_widget(result_para, chunks[chunk_idx]);
             chunk_idx += 1;
         }
     }
